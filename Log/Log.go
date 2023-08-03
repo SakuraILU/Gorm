@@ -11,6 +11,7 @@ var (
 	infolog *log.Logger
 	warnlog *log.Logger
 	errlog  *log.Logger
+	logs    []*log.Logger
 )
 
 var (
@@ -33,9 +34,10 @@ var (
 func init() {
 	fd := os.Stdout
 	flag := log.Ldate | log.Lshortfile
-	infolog = log.New(fd, renderColor("[INFO]  ", blue), flag)
-	warnlog = log.New(fd, renderColor("[WARN]  ", orange), flag)
+	infolog = log.New(fd, renderColor("[INFO ] ", blue), flag)
+	warnlog = log.New(fd, renderColor("[WARN ] ", orange), flag)
 	errlog = log.New(fd, renderColor("[ERROR] ", red), flag)
+	logs = []*log.Logger{infolog, warnlog, errlog}
 
 	Info = infolog.Println
 	Infof = infolog.Printf
@@ -59,6 +61,10 @@ const (
 func SetLogLevel(level int) {
 	llk.Lock()
 	defer llk.Unlock()
+
+	for _, log := range logs {
+		log.SetOutput(os.Stdout)
+	}
 
 	if level > INFO {
 		infolog.SetOutput(io.Discard)

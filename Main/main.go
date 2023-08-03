@@ -1,10 +1,18 @@
 package main
 
-import log "gorm/Log"
+import (
+	"fmt"
+	engine "gorm/Engine"
+)
 
 func main() {
-	log.SetLogLevel(log.WARN)
-	log.Infof("infof")
-	log.Warnf("warnf")
-	log.Errorf("errorf %v", 3.14)
+	engine, _ := engine.NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+	s := engine.NewSession()
+	_, _ = s.Raw("DROP TABLE IF EXISTS User;").Exec()
+	_, _ = s.Raw("CREATE TABLE User(Name text);").Exec()
+	_, _ = s.Raw("CREATE TABLE User(Name text);").Exec()
+	result, _ := s.Raw("INSERT INTO User(`Name`) values (?), (?)", "Tom", "Sam").Exec()
+	count, _ := result.RowsAffected()
+	fmt.Printf("Exec success, %d affected\n", count)
 }
