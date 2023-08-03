@@ -45,5 +45,5 @@ func (s *Sqlite3) DataTypeOf(v any) string {
 }
 
 func (s *Sqlite3) TableExistSQL(tableName string) (string, interface{}) {
-	return "SELECT name FROM sqlite_master WHERE type='table' and name = '?'", tableName
+	return "SELECT name FROM sqlite_master WHERE type='table' and name = ?", tableName
 }
