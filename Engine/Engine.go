@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql"
+	dialect "gorm/Dialect"
 	log "gorm/Log"
 	session "gorm/Session"
 
@@ -9,7 +10,8 @@ import (
 )
 
 type Engine struct {
-	db *sql.DB
+	db   *sql.DB
+	dial dialect.Dialect
 }
 
 func NewEngine(driver, source string) (e *Engine, err error) {
@@ -22,10 +24,16 @@ func NewEngine(driver, source string) (e *Engine, err error) {
 		log.Error(err)
 		return
 	}
-
 	log.Infof("Connect to the database %v(driver: %v)", source, driver)
+
+	dial, err := dialect.GetDialect(driver)
+	if err != nil {
+		return
+	}
+
 	e = &Engine{
-		db: db,
+		db:   db,
+		dial: dial,
 	}
 	return
 }
@@ -39,5 +47,5 @@ func (e *Engine) Close() {
 }
 
 func (s *Engine) NewSession() *session.Session {
-	return session.NewSession(s.db)
+	return session.NewSession(s.db, s.dial)
 }

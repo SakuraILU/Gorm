@@ -2,13 +2,15 @@ package schema
 
 import (
 	dialect "gorm/Dialect"
+	log "gorm/Log"
 	"reflect"
 )
 
 type Schema struct {
 	name       string
-	fields     map[string]*Field
+	namefields map[string]*Field
 	fieldnames []string
+	fields     []*Field
 }
 
 func NewSchema(v any, dial dialect.Dialect) (s *Schema) {
@@ -17,8 +19,9 @@ func NewSchema(v any, dial dialect.Dialect) (s *Schema) {
 
 	s = &Schema{
 		name:       typ.Name(),
-		fields:     make(map[string]*Field),
+		namefields: make(map[string]*Field),
 		fieldnames: make([]string, 0),
+		fields:     make([]*Field, 0),
 	}
 
 	for i := 0; i < typ.NumField(); i++ {
@@ -28,8 +31,9 @@ func NewSchema(v any, dial dialect.Dialect) (s *Schema) {
 			Type: dial.DataTypeOf(reflect.Indirect(reflect.New(f.Type)).Interface()),
 			Tag:  f.Tag.Get("gorm"),
 		}
-		s.fields[f.Name] = field
+		s.namefields[f.Name] = field
 		s.fieldnames = append(s.fieldnames, f.Name)
+		s.fields = append(s.fields, field)
 	}
 	return
 }
@@ -43,5 +47,10 @@ func (s *Schema) GetFieldNames() []string {
 }
 
 func (s *Schema) GetField(name string) *Field {
-	return s.fields[name]
+	return s.namefields[name]
+}
+
+func (s *Schema) GetFields() []*Field {
+	log.Warnf("fields %v", s.fields)
+	return s.fields
 }

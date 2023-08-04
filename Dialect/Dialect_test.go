@@ -1,8 +1,6 @@
 package dialect
 
 import (
-	engine "gorm/Engine"
-	"log"
 	"testing"
 	"time"
 )
@@ -41,33 +39,4 @@ func TestDialect1(t *testing.T) {
 	if d.DataTypeOf(v7) != "datetime" {
 		t.Errorf("time.Time type should be datetime")
 	}
-}
-
-// sqlite3 table exist test
-func TestDialect2(t *testing.T) {
-	// generate a sqlite3 dialect
-	d := &Sqlite3{}
-
-	// create a table
-	engine, _ := engine.NewEngine("sqlite3", "tmp.db")
-	defer engine.Close()
-	s := engine.NewSession()
-	_, _ = s.Raw("DROP TABLE IF EXISTS User;").Exec()
-	_, _ = s.Raw("CREATE TABLE User(Name text);").Exec()
-
-	// test table exist
-	sql, vals := d.TableExistSQL("User")
-	if sql != "SELECT name FROM sqlite_master WHERE type='table' and name = ?" {
-		t.Errorf("TableExistSQL error")
-	}
-	if vals != "User" {
-		t.Errorf("TableExistSQL error")
-	}
-
-	// test whether the table exists
-	r, _ := s.Raw(sql, vals).Query()
-	if !r.Next() {
-		t.Errorf("Table should exist")
-	}
-	log.Fatal()
 }
