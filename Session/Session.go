@@ -82,6 +82,7 @@ func (s *Session) HasTable() bool {
 	return true
 }
 
+// v1, v2, v3...
 func (s *Session) Insert(values ...any) (n int64, err error) {
 	s.Model(values[0])
 
@@ -109,6 +110,7 @@ func (s *Session) Insert(values ...any) (n int64, err error) {
 	return res.RowsAffected()
 }
 
+// &vs[]
 func (s *Session) Find(values any) (err error) {
 	// (*             values)    [0]
 	// Indirect       ValueOf    Elem()
@@ -125,7 +127,6 @@ func (s *Session) Find(values any) (err error) {
 	}
 
 	for rows.Next() {
-		log.Warn("next")
 		v := reflect.New(reftyp).Elem()
 		elems := make([]any, 0)
 		for _, name := range s.reftable.GetFieldNames() {
@@ -139,6 +140,87 @@ func (s *Session) Find(values any) (err error) {
 		refvs.Set(reflect.Append(refvs, v))
 	}
 	return
+}
+
+func (s *Session) First(value any) (err error) {
+	refv := reflect.Indirect(reflect.ValueOf(value))
+	reftyp := refv.Type()
+	// something weired here
+	// use v := reflect.MakeSlice(reflect.SliceOf(reftyp), 0, 0) will cause panic
+	// it is not addressable...
+	// but use New to create a pointer and then Set MakeSlice to it will be ok
+	values := reflect.New(reflect.SliceOf(reftyp)).Elem()
+	values.Set(reflect.MakeSlice(reflect.SliceOf(reftyp), 0, 0))
+	err = s.Limit(1).Find(values.Addr().Interface())
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if values.Len() == 0 {
+		err = fmt.Errorf("Not Found")
+		log.Error(err)
+		return
+	}
+
+	refv.Set(values.Index(0))
+	return
+}
+
+func (s *Session) Update(values ...any) (n int64, err error) {
+	kvs, ok := values[0].(map[string]any)
+	if !ok {
+		if len(values)%2 != 0 {
+			err = fmt.Errorf("Update: arguments should be a map[string]any or k, v, k, v,...(length mod 2 == 0)")
+			log.Error(err)
+			return
+		}
+		kvs = make(map[string]any)
+		for i := 0; i < len(values); i = i + 2 {
+			kvs[values[i].(string)] = values[i+1]
+		}
+	}
+
+	s.clause.Set(clause.UPDATE, s.reftable.GetName(), kvs)
+	cmd, vals := s.clause.Build(clause.UPDATE, clause.WHERE)
+	res, err := s.Raw(cmd, vals...).Exec()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	return res.RowsAffected()
+}
+
+func (s *Session) Delete() (n int64, err error) {
+	s.clause.Set(clause.DELETE, s.reftable.GetName())
+	cmd, vals := s.clause.Build(clause.DELETE, clause.WHERE)
+	res, err := s.Raw(cmd, vals...).Exec()
+	return res.RowsAffected()
+}
+
+func (s *Session) Count() (n int64, err error) {
+	s.clause.Set(clause.COUNT, s.reftable.GetName())
+	cmd, vals := s.clause.Build(clause.COUNT, clause.WHERE, clause.ORDERBY, clause.LIMIT)
+	row := s.Raw(cmd, vals).QueryRow()
+	if err = row.Scan(&n); err != nil {
+		log.Error(err)
+	}
+	return
+}
+
+func (s *Session) Where(desc string, values ...any) *Session {
+	values = append([]any{desc}, values...)
+	s.clause.Set(clause.WHERE, values...)
+	return s
+}
+
+func (s *Session) OrderBy(key string) *Session {
+	s.clause.Set(clause.ORDERBY, key)
+	return s
+}
+
+func (s *Session) Limit(value any) *Session {
+	s.clause.Set(clause.LIMIT, value)
+	return s
 }
 
 func (s *Session) Raw(sqlcmd string, sqlvals ...any) *Session {

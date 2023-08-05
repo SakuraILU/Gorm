@@ -16,6 +16,8 @@ const (
 	WHERE
 	ORDERBY
 	UPDATE
+	DELETE
+	COUNT
 )
 
 type GenFn func(...any) (string, []any)
@@ -28,6 +30,8 @@ var generators map[Type]GenFn = map[Type]GenFn{
 	WHERE:   _where,
 	ORDERBY: _orderBy,
 	UPDATE:  _update,
+	DELETE:  _delete,
+	COUNT:   _count,
 }
 
 // string, []string
@@ -123,9 +127,18 @@ func _update(args ...any) (string, []any) {
 	return fmt.Sprintf("UPDATE %s SET %s", tablename, strings.Join(ks, ", ")), vs
 }
 
+// string
 func _delete(args ...any) (string, []any) {
 	// DELETE FROM tablename
 	//			   string
 	tablename := args[0].(string)
 	return fmt.Sprintf("DELETE FROM %s", tablename), []any{}
+}
+
+// string
+func _count(args ...any) (string, []any) {
+	// SELECT COUNT(*) FROM fieldnames
+	// 							string
+	tablename := args[0].(string)
+	return _select(tablename, "COUNT(*)")
 }
