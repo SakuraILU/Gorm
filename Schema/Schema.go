@@ -51,6 +51,8 @@ func (s *Schema) GetField(name string) *Field {
 }
 
 func (s *Schema) GetFields() []*Field {
-	log.Warnf("fields %v", s.fields)
+	for _, field := range s.fields {
+		log.Info(field.Name, field.Type, field.Tag)
+	}
 	return s.fields
 }

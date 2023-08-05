@@ -2,6 +2,7 @@ package engine
 
 import (
 	dialect "gorm/Dialect"
+	"log"
 	"testing"
 )
 
@@ -52,5 +53,40 @@ func TestEngine2(t *testing.T) {
 	s.Model(&User{}).DropTable()
 	if s.HasTable() {
 		t.Errorf("Table should not exist")
+	}
+}
+
+// insert
+func TestEngine3(t *testing.T) {
+	// create a table
+	engine, _ := NewEngine("sqlite3", "tmp.db")
+	defer engine.Close()
+	s := engine.NewSession()
+
+	// define several users
+	users := []User{
+		{"Jack", 35, "Worker"},
+		{"Bob", 21, "Student"},
+		{"Tom", 25, "Teacher"},
+		{"Alice", 18, "Student"},
+	}
+	// insert
+	_ = s.Model(&User{}).DropTable()
+	s.CreateTable()
+	for _, user := range users {
+		_, _ = s.Insert(&user)
+	}
+
+	// find
+	var res []User
+	_ = s.Find(&res)
+	if len(res) != len(users) {
+		t.Errorf("Find error")
+	}
+	for i := 0; i < len(res); i++ {
+		log.Println(res[i])
+		if res[i] != users[i] {
+			t.Errorf("Find error")
+		}
 	}
 }

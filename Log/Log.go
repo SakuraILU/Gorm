@@ -21,6 +21,8 @@ var (
 	Warnf  = warnlog.Printf
 	Error  = errlog.Println
 	Errorf = errlog.Printf
+	Fatal  = errlog.Fatal
+	Fatalf = errlog.Fatalf
 	llk    = sync.Mutex{}
 )
 
