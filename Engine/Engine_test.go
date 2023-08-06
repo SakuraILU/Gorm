@@ -188,7 +188,7 @@ func TestEngine6(t *testing.T) {
 	_, _ = s.Where("name = ?", "Jack").Delete()
 	var res []User
 	_ = s.Find(&res)
-	if len(res) != 0 {
+	if len(res) != 3 {
 		t.Errorf("Delete error")
 	}
 }

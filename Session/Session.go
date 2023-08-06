@@ -84,7 +84,7 @@ func (s *Session) HasTable() bool {
 
 // v1, v2, v3...
 func (s *Session) Insert(values ...any) (n int64, err error) {
-	s.Model(values[0])
+	// s.Model(values[0])
 
 	s.clause.Set(clause.INSERT, s.reftable.GetName(), s.reftable.GetFieldNames())
 
@@ -116,7 +116,7 @@ func (s *Session) Find(values any) (err error) {
 	// Indirect       ValueOf    Elem()
 	refvs := reflect.Indirect(reflect.ValueOf(values))
 	reftyp := refvs.Type().Elem()
-	s.Model(reflect.New(reftyp).Interface())
+	// s.Model(reflect.New(reftyp).Interface())
 
 	s.clause.Set(clause.SELECT, s.reftable.GetName(), s.reftable.GetFieldNames())
 	cmd, vals := s.clause.Build(clause.SELECT, clause.WHERE, clause.ORDERBY, clause.LIMIT)
