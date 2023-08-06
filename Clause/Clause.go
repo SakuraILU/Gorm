@@ -23,6 +23,8 @@ func (c *Clause) Set(typ Type, vars ...any) {
 }
 
 func (c *Clause) Build(typs ...Type) (string, []any) {
+	defer c.clear()
+
 	cmds := make([]string, 0)
 	vals := make([]any, 0)
 
@@ -34,8 +36,10 @@ func (c *Clause) Build(typs ...Type) (string, []any) {
 		vals = append(vals, c.typvals[typ]...)
 	}
 
-	// clear
+	return strings.Join(cmds, " "), vals
+}
+
+func (c *Clause) clear() {
 	c.typcmds = make(map[Type]string)
 	c.typvals = make(map[Type][]any)
-	return strings.Join(cmds, " "), vals
 }

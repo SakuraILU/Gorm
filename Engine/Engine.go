@@ -46,6 +46,27 @@ func (e *Engine) Close() {
 	log.Info("Close database success")
 }
 
-func (s *Engine) NewSession() *session.Session {
-	return session.NewSession(s.db, s.dial)
+func (e *Engine) NewSession() *session.Session {
+	return session.NewSession(e.db, e.dial)
+}
+
+func (e *Engine) Transaction(fn func(s *session.Session) (any, error)) (value any, err error) {
+	s := e.NewSession()
+
+	if err = s.Begin(); err != nil {
+		return
+	}
+
+	defer func() {
+		if err != nil {
+			s.Rollback()
+		} else if err := recover(); err != nil {
+			s.Rollback()
+			panic(err)
+		} else {
+			s.Commit()
+		}
+	}()
+
+	return fn(s)
 }
