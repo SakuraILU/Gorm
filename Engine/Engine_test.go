@@ -1,6 +1,10 @@
 package engine
 
 import (
+	"bytes"
+	"database/sql/driver"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -383,12 +387,43 @@ import (
 
 // test migrate
 // because two different user defined...,
-// you may need to comment below and uncomment above, run some tests to create user table and insert some entries (TestEngine4 for example)
+// if db has no User table, you need to comment below and uncomment above,
+// run some tests to create user table and insert some entries (TestEngine4 for example)
 // then comment above and uncomment below, test the migration function
+//
+// however, if db has a User table, then just run below tests
 type User struct {
-	Name string `gorm:"PRIMARY KEY"`
-	Age  int
-	ID   int
+	Name    string `gorm:"PRIMARY KEY"`
+	Age     int
+	ID      int
+	History ints
+}
+
+type ints []int
+
+func (i *ints) Scan(value interface{}) error {
+	buf := bytes.NewBuffer(value.([]byte))
+	for {
+		v, err := buf.ReadString(',')
+		if err != nil {
+			break
+		}
+		v = strings.Trim(v, ",")
+		vi, _ := strconv.Atoi(v)
+		*i = append(*i, vi)
+	}
+	return nil
+}
+
+func (i ints) Value() (driver.Value, error) {
+	buf := bytes.NewBuffer([]byte{})
+	for idx, v := range i {
+		if idx != 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString(strconv.Itoa(v))
+	}
+	return buf.Bytes(), nil
 }
 
 func TestEngine12(t *testing.T) {
@@ -401,18 +436,15 @@ func TestEngine12(t *testing.T) {
 
 	// define several users
 	users := []User{
-		{"Jack", 35, 1245},
-		{"Bob", 21, 1246},
-		{"Tom", 25, 1247},
+		{"Jack", 35, 1245, []int{1, 2, 3}},
+		{"Bob", 21, 1246, []int{4, 5, 6}},
+		{"Tom", 25, 1247, []int{7, 8, 9}},
+		{"Alice", 18, 1248, []int{10, 11, 12}},
 	}
 
-	// insert
-	for _, user := range users {
-		_, _ = s.Insert(&user)
-	}
 	// update id
 	for _, user := range users {
-		_, _ = s.Where("name = ?", user.Name).Update("id", user.ID)
+		_, _ = s.Where("name = ?", user.Name).Update("id", user.ID, "history", user.History)
 	}
 
 	// find

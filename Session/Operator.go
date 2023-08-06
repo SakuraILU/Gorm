@@ -12,13 +12,18 @@ import (
 func (s *Session) CreateTable() (err error) {
 	fields := s.reftable.GetFields()
 	columns := make([]string, 0)
+	primcolumns := make([]string, 0)
 	for _, field := range fields {
-		columns = append(columns, fmt.Sprintf("%s %s %s", field.Name, field.Type, field.Tag))
+		columns = append(columns, fmt.Sprintf("%s %s", field.Name, field.Type))
+		if field.Tag == "PRIMARY KEY" {
+			primcolumns = append(primcolumns, field.Name)
+		}
 	}
 
 	desc := strings.Join(columns, ",")
+	primdesc := strings.Join(primcolumns, ",")
 	log.Info(desc)
-	_, err = s.Raw(fmt.Sprintf("CREATE TABLE %s (%s)", s.reftable.GetName(), desc)).Exec()
+	_, err = s.Raw(fmt.Sprintf("CREATE TABLE %s (%s, PRIMARY KEY(%s))", s.reftable.GetName(), desc, primdesc)).Exec()
 	return
 }
 
