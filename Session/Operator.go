@@ -119,20 +119,27 @@ func (s *Session) First(value any) (err error) {
 	// use v := reflect.MakeSlice(reflect.SliceOf(reftyp), 0, 0) will cause panic
 	// it is not addressable...
 	// but use New to create a pointer and then Set MakeSlice to it will be ok
-	values := reflect.New(reflect.SliceOf(reftyp)).Elem()
-	values.Set(reflect.MakeSlice(reflect.SliceOf(reftyp), 0, 0))
-	err = s.Limit(1).Find(values.Addr().Interface())
+	// vs    := new         ([]                    User)
+	// refvs   reflect.New   reflect.Sliceof      reftyp
+	refvs := reflect.New(reflect.SliceOf(reftyp)).Elem()
+	// vs	  =       make               ([]                    User,    0, 0)
+	// refvs  .Set   reflect.MakeSlice   (reflect.SliceOf       reftyp,  0, 0)
+	refvs.Set(reflect.MakeSlice(reflect.SliceOf(reftyp), 0, 0))
+	//						&vs
+	err = s.Limit(1).Find(refvs.Addr().Interface())
 	if err != nil {
 		log.Error(err)
 		return
 	}
-	if values.Len() == 0 {
+	if refvs.Len() == 0 {
 		err = fmt.Errorf("Not Found")
 		log.Error(err)
 		return
 	}
 
-	refv.Set(values.Index(0))
+	// value   =  values  [0]
+	// refv  .Set  refvs .Index(0)
+	refv.Set(refvs.Index(0))
 	return
 }
 
