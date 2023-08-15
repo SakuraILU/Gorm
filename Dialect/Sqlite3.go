@@ -10,7 +10,8 @@ type Sqlite3 struct {
 }
 
 func (s *Sqlite3) DataTypeOf(v any) string {
-	switch reflect.TypeOf(v).Kind() {
+	refv := reflect.Indirect(reflect.ValueOf(v))
+	switch refv.Kind() {
 	case reflect.Bool:
 		return "bool"
 	case reflect.Int8:
@@ -40,8 +41,8 @@ func (s *Sqlite3) DataTypeOf(v any) string {
 		}
 	}
 
-	log.Infof("Unsupport data type: %v", v)
-	return ""
+	log.Errorf("Unsupport data type: %v", v)
+	panic("Unsupport data type")
 }
 
 func (s *Sqlite3) TableExistSQL(tableName string) (string, interface{}) {

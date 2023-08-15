@@ -3,400 +3,494 @@ package engine
 import (
 	"bytes"
 	"database/sql/driver"
+	"errors"
+	log "gorm/Log"
+	session "gorm/Session"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-// type User struct {
-// 	Name   string `gorm:"PRIMARY KEY"`
-// 	Age    int
-// 	Career string
-// }
+// CreateTable, DropTable, HasTable test
+func TestEngine0(t *testing.T) {
+	type User struct {
+		Name string `gorm:"PRIMARY KEY"`
+		Age  int
+	}
+	type Car struct {
+		User  string `gorm:"PRIMARY KEY"`
+		Brand *string
+		Year  int
+		Price float64
+	}
 
-// // sqlite3 table exist test
-// func TestEngine1(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
-// 	_, _ = s.Raw("DROP TABLE IF EXISTS User;").Exec()
-// 	_, _ = s.Raw("CREATE TABLE User(Name text);").Exec()
+	cases := []struct {
+		name  string
+		model interface{}
+	}{
+		{"User", &User{}},
+		{"Car", &Car{Brand: new(string)}},
+	}
 
-// 	// test table exist
-// 	d := &dialect.Sqlite3{}
-// 	sql, vals := d.TableExistSQL("User")
-// 	if sql != "SELECT name FROM sqlite_master WHERE type='table' and name = ?" {
-// 		t.Errorf("TableExistSQL error")
-// 	}
-// 	if vals != "User" {
-// 		t.Errorf("TableExistSQL error")
-// 	}
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
 
-// 	// test whether the table exists
-// 	r, _ := s.Raw(sql, vals).Query()
-// 	if !r.Next() {
-// 		t.Errorf("Table should exist")
-// 	}
-// }
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := engine.NewSession().Model(c.model)
+			s.CreateTable()
 
-// // CreateTable, DropTable, HasTable test
-// func TestEngine2(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+			log.Infof("create table %v", c.model)
+			if !s.HasTable() {
+				t.Errorf("Table should exist")
+			}
 
-// 	s.Model(&User{}).CreateTable()
-// 	if !s.HasTable() {
-// 		t.Errorf("Table should exist")
-// 	}
+			s.DropTable()
+			if s.HasTable() {
+				t.Errorf("Table should not exist")
+			}
+		})
+	}
+}
 
-// 	s.Model(&User{}).DropTable()
-// 	if s.HasTable() {
-// 		t.Errorf("Table should not exist")
-// 	}
-// }
+// struct without pointer
+func TestEngine1(t *testing.T) {
+	type User struct {
+		Name string `gorm:"PRIMARY KEY"`
+		Age  int
+	}
 
-// // insert
-// func TestEngine3(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+	cases := []struct {
+		name string
+		user User
+	}{
+		{"Tom&18", User{"Tom", 18}},
+		{"Jack&22", User{"Jack", 22}},
+		{"Sam&25", User{"Sam", 25}},
+		{"Alice&18", User{"Alice", 18}},
+		{"Bob&22", User{"Bob", 22}},
+		{"Lily&20", User{"Lily", 20}},
+	}
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
-// 	// insert
-// 	_ = s.Model(&User{}).DropTable()
-// 	s.CreateTable()
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
 
-// 	// find
-// 	var res []User
-// 	_ = s.Find(&res)
-// 	if len(res) != len(users) {
-// 		t.Errorf("Find error")
-// 	}
-// 	for i := 0; i < len(res); i++ {
-// 		log.Info(res[i])
-// 		if res[i] != users[i] {
-// 			t.Errorf("Find error")
-// 		}
-// 	}
-// }
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := engine.NewSession().Model(&c.user)
+			s.CreateTable()
 
-// // Limit, Where, OrderBy, Select test
-// func TestEngine4(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+			log.Infof("create table %v", c.user)
+			_, _ = s.Insert(&c.user)
+			var users []User
+			_ = s.Where("Name = ?", c.user.Name).Find(&users)
+			if !reflect.DeepEqual(users[0], c.user) {
+				t.Errorf("Failed to insert, got %v, expect %v", users[0], c.user)
+			}
+		})
+	}
+}
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
+// struct with pointer
+func TestEngine2(t *testing.T) {
+	type Car struct {
+		User  string `gorm:"PRIMARY KEY"`
+		Brand *string
+		Year  int
+		Price float64
+	}
 
-// 	// insert
-// 	_ = s.Model(&User{}).DropTable()
-// 	s.CreateTable()
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
-// 	// insert again
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
-// 	// insert again
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
+	brands := []string{"BMW", "Benz", "Audi", "Lexus", "Toyota", "Honda", "Ford", "Tesla", "Volkswagen", "Nissan"}
 
-// 	// find
-// 	var res []User
-// 	_ = s.Limit(2).Where("name = ? AND age = ?", "Jack", 35).OrderBy("age DESC").Find(&res)
-// 	if len(res) != 1 {
-// 		t.Errorf("Find error")
-// 	}
-// 	if res[0] != users[0] {
-// 		t.Errorf("Find error")
-// 	}
+	cases := []struct {
+		name string
+		car  Car
+	}{
+		{"Tom&18", Car{"Tom", &brands[0], 2001, 10000}},
+		{"Jack&22", Car{"Jack", &brands[1], 2008, 20000}},
+		{"Sam&25", Car{"Sam", &brands[2], 1997, 14000}},
+		{"Alice&18", Car{"Alice", &brands[3], 2010, 30000}},
+		{"Bob&22", Car{"Bob", &brands[4], 2021, 532000}},
+		{"Lily&20", Car{"Lily", &brands[5], 2017, 100000}},
+	}
 
-// 	// find 3 users
-// 	var res2 []User
-// 	_ = s.Limit(3).Where("age > ?", 3).OrderBy("age DESC").Find(&res2)
-// 	if len(res2) != 3 {
-// 		t.Errorf("Find error")
-// 	}
-// }
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
 
-// // Update test
-// func TestEngine5(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := engine.NewSession().Model(&c.car)
+			s.CreateTable()
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
+			log.Infof("create table %v", c.car)
+			_, _ = s.Insert(&c.car)
+			var car Car
+			_ = s.Where("User = ?", c.car.User).First(&car)
+			if !reflect.DeepEqual(car, c.car) {
+				t.Errorf("Failed to insert, got %v, expect %v", car, c.car)
+			}
+		})
+	}
+}
 
-// 	// insert
-// 	_ = s.Model(&User{}).DropTable()
-// 	s.CreateTable()
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
+// update
+func TestEngine3(t *testing.T) {
+	type User struct {
+		Name string `gorm:"PRIMARY KEY"`
+		Age  int
+	}
 
-// 	// update
-// 	_, _ = s.Where("name = ?", "Jack").Update(map[string]any{"age": 36, "career": "Engineer"})
-// 	var res []User
-// 	_ = s.Find(&res)
-// 	if res[0].Age != 36 || res[0].Career != "Engineer" {
-// 		t.Errorf("Update error")
-// 	}
-// }
+	cases := []struct {
+		name        string
+		user_before User
+		update      map[string]any
+		user_after  User
+	}{
+		{"Tom&18", User{"Tom", 18}, map[string]any{"Age": 19}, User{"Tom", 19}},
+		{"Jack&22", User{"Jack", 22}, map[string]any{"Age": 23}, User{"Jack", 23}},
+		{"Sam&25", User{"Sam", 25}, map[string]any{"Age": 14}, User{"Sam", 14}},
+		{"Alice&18", User{"Alice", 18}, map[string]any{"Name": "AliceNew"}, User{"AliceNew", 18}},
+		{"Bob&22", User{"Bob", 22}, map[string]any{"Age": 23, "Name": "BobNew"}, User{"BobNew", 23}},
+	}
 
-// // Delete test
-// func TestEngine6(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+	s := engine.NewSession().Model(&User{})
+	s.DropTable()
+	s.CreateTable()
+	for _, c := range cases {
+		s.Insert(&c.user_before)
+	}
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
+	for _, c := range cases {
+		s.Where("Name = ?", c.user_before.Name).Update(c.update)
+	}
 
-// 	// insert
-// 	_ = s.Model(&User{}).DropTable()
-// 	s.CreateTable()
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
+	for _, c := range cases {
+		var users []User
+		_ = s.Where("Name = ?", c.user_after.Name).Find(&users)
+		if !reflect.DeepEqual(users[0], c.user_after) {
+			t.Errorf("Failed to update, got %v, expect %v", users[0], c.user_after)
+		}
+	}
+}
 
-// 	// delete
-// 	_, _ = s.Where("name = ?", "Jack").Delete()
-// 	var res []User
-// 	_ = s.Find(&res)
-// 	if len(res) != 3 {
-// 		t.Errorf("Delete error")
-// 	}
-// }
+// first and order
+func TestEngine4(t *testing.T) {
+	type User struct {
+		Name string `gorm:"PRIMARY KEY"`
+		Age  int
+	}
 
-// // first test
-// func TestEngine7(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+	cases := []struct {
+		name string
+		user User
+	}{
+		{"Tom&12", User{"Tom", 12}},
+		{"Jack&22", User{"Jack", 22}},
+		{"Sam&25", User{"Sam", 25}},
+		{"Alice&18", User{"Alice", 18}},
+		{"Bob&22", User{"Bob", 22}},
+		{"Lily&20", User{"Lily", 30}},
+	}
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+	s := engine.NewSession().Model(&User{})
+	s.DropTable()
+	s.CreateTable()
+	for _, c := range cases {
+		s.Insert(&c.user)
+	}
 
-// 	// insert
-// 	_ = s.Model(&User{}).DropTable()
-// 	s.CreateTable()
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
+	var user User
+	_ = s.OrderBy("Age").First(&user)
+	if !reflect.DeepEqual(user, cases[0].user) {
+		t.Errorf("Failed to first, got %v, expect %v", user, cases[0].user)
+	}
 
-// 	// first
-// 	var res User
-// 	_ = s.Where("age > ?", 18).OrderBy("age").First(&res)
+	_ = s.OrderBy("Age DESC").First(&user)
+	if !reflect.DeepEqual(user, cases[len(cases)-1].user) {
+		t.Errorf("Failed to first, got %v, expect %v", user, cases[len(cases)-1].user)
+	}
+}
 
-// 	if res != users[1] {
-// 		t.Errorf("First error")
-// 	}
-// }
+// clauses: limit, orderby
+func TestEngine5(t *testing.T) {
+	type User struct {
+		Name string `gorm:"PRIMARY KEY"`
+		Age  int
+	}
 
-// type UserHook struct {
-// 	Name   string `gorm:"PRIMARY KEY"`
-// 	Age    int
-// 	Career string
-// }
+	cases := []struct {
+		name string
+		user User
+	}{
+		{"Tom&12", User{"Tom", 12}},
+		{"Jack&22", User{"Jack", 22}},
+		{"Sam&25", User{"Sam", 25}},
+		{"Alice&18", User{"Alice", 18}},
+		{"Bob&22", User{"Bob", 22}},
+	}
 
-// // test hooks
-// func (u *UserHook) BeforeQuery(s *session.Session) error {
-// 	log.Infof("BeforeQuery name %v", reflect.TypeOf(u).Elem().Name())
-// 	return nil
-// }
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+	s := engine.NewSession().Model(&User{})
+	s.DropTable()
+	s.CreateTable()
 
-// func (u *UserHook) AfterQuery(s *session.Session) error {
-// 	u.Career = "****"
-// 	log.Info("AfterQuery")
-// 	return nil
-// }
+	for _, c := range cases {
+		s.Insert(&c.user)
+	}
 
-// func (u *UserHook) BeforeInsert(s *session.Session) error {
-// 	log.Info("BeforeInsert")
-// 	u.Age += 100
-// 	return nil
-// }
+	var users []User
+	_ = s.OrderBy("Age").Limit(3).Find(&users)
+	if len(users) != 3 {
+		t.Errorf("Failed to limit, got %v, expect %v", len(users), 3)
+	}
+	if !reflect.DeepEqual(users[0], cases[0].user) {
+		t.Errorf("Failed to limit, got %v, expect %v", users[0], cases[0].user)
+	}
+	if !reflect.DeepEqual(users[1], cases[3].user) {
+		t.Errorf("Failed to limit, got %v, expect %v", users[1], cases[3].user)
+	}
+	if !reflect.DeepEqual(users[2], cases[1].user) {
+		t.Errorf("Failed to limit, got %v, expect %v", users[2], cases[1].user)
+	}
 
-// func (u *UserHook) AfterInsert(s *session.Session) error {
-// 	log.Info("AfterInsert")
-// 	return nil
-// }
+	// Desc
+	users = []User{}
+	_ = s.OrderBy("Age DESC").Limit(3).Find(&users)
+	if len(users) != 3 {
+		t.Errorf("Failed to limit, got %v, expect %v", len(users), 3)
+	}
+	if !reflect.DeepEqual(users[0], cases[2].user) {
+		t.Errorf("Failed to limit, got %v, expect %v", users[0], cases[2].user)
+	}
+	if !reflect.DeepEqual(users[1], cases[1].user) {
+		t.Errorf("Failed to limit, got %v, expect %v", users[1], cases[1].user)
+	}
+	if !reflect.DeepEqual(users[2], cases[4].user) {
+		t.Errorf("Failed to limit, got %v, expect %v", users[2], cases[4].user)
+	}
 
-// // test hooks
-// func TestEngine8(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
-// 	s := engine.NewSession()
+}
 
-// 	// define several users
-// 	users := []UserHook{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
+// delete
+func TestEngine6(t *testing.T) {
+	type User struct {
+		Name string `gorm:"PRIMARY KEY"`
+		Age  int
+	}
 
-// 	// insert
-// 	_ = s.Model(&UserHook{}).DropTable()
-// 	s.CreateTable()
-// 	for _, user := range users {
-// 		_, _ = s.Insert(&user)
-// 	}
+	cases_insert := []struct {
+		name string
+		user User
+	}{
+		{"Tom&12", User{"Tom", 12}},
+		{"Jack&22", User{"Jack", 22}},
+		{"Sam&25", User{"Sam", 25}},
+		{"Alice&18", User{"Alice", 18}},
+		{"Bob&22", User{"Bob", 22}},
+	}
 
-// 	// first
-// 	var res UserHook
-// 	_ = s.Where("age > ?", 18).OrderBy("age").First(&res) // every age add 100...so no one is filtered, will found Alice
-// 	t.Log(res)
-// 	// check hook
-// 	if res.Career != "****" {
-// 		t.Errorf("AfterQuery error")
-// 	}
-// 	if res.Age != 118 {
-// 		t.Errorf("BeforeInsert error")
-// 	}
-// }
+	cases_delete := []struct {
+		name string
+		user User
+	}{}
 
-// // test commit
-// func TestEngine9(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
+	cases_left := []struct {
+		name string
+		user User
+	}{}
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 	}
+	for idx, c := range cases_insert {
+		if idx%2 == 0 {
+			cases_delete = append(cases_delete, c)
+		} else {
+			cases_left = append(cases_left, c)
+		}
+	}
 
-// 	// drop table before transaction
-// 	// otherwise, if drop in a transaction, it will be rollback
-// 	// and the table will not be dropped, some remained data will cause error
-// 	s := engine.NewSession()
-// 	_ = s.Model(&User{}).DropTable()
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+	s := engine.NewSession().Model(&User{})
+	s.DropTable()
+	s.CreateTable()
 
-// 	// transcation
-// 	_, err := engine.Transaction(func(s *session.Session) (any, error) {
-// 		_ = s.Model(&User{}).DropTable()
-// 		s.CreateTable()
-// 		for _, user := range users {
-// 			_, _ = s.Insert(&user)
-// 		}
-// 		return nil, nil
-// 	})
+	for _, c := range cases_insert {
+		s.Insert(&c.user)
+	}
 
-// 	// check
-// 	if err != nil {
-// 		t.Errorf("Transaction error")
-// 	}
-// 	var res []User
-// 	_ = s.Find(&res)
-// 	if len(res) != len(users) {
-// 		t.Errorf("Transaction error")
-// 	}
-// 	for i := 0; i < len(res); i++ {
-// 		if res[i] != users[i] {
-// 			t.Errorf("Transaction error")
-// 		}
-// 	}
-// }
+	for _, c := range cases_delete {
+		s.Where("Name = ?", c.user.Name).Delete()
+	}
 
-// // rollback test
-// func TestEngine10(t *testing.T) {
-// 	// create a table
-// 	engine, _ := NewEngine("sqlite3", "tmp.db")
-// 	defer engine.Close()
+	var users []User
+	_ = s.Find(&users)
 
-// 	// define several users
-// 	users := []User{
-// 		{"Jack", 35, "Worker"},
-// 		{"Bob", 21, "Student"},
-// 		{"Tom", 25, "Teacher"},
-// 		{"Alice", 18, "Student"},
-// 	}
+	if len(users) != len(cases_left) {
+		t.Errorf("Failed to delete, got %v, expect %v", len(users), len(cases_left))
+	}
+	for idx, c := range cases_left {
+		if !reflect.DeepEqual(users[idx], c.user) {
+			t.Errorf("Failed to delete, got %v, expect %v", users[idx], c.user)
+		}
+	}
+}
 
-// 	// drop table before transaction
-// 	// otherwise, if drop in a transaction, it will be rollback
-// 	// and the table will not be dropped, some remained data will cause error
-// 	s := engine.NewSession()
-// 	_ = s.Model(&User{}).DropTable()
-
-// 	// transcation
-// 	// rollback
-// 	_, err := engine.Transaction(func(s *session.Session) (any, error) {
-// 		_ = s.Model(&User{}).DropTable()
-// 		s.CreateTable()
-// 		for _, user := range users {
-// 			_, _ = s.Insert(&user)
-// 		}
-// 		return nil, errors.New("rollback")
-// 	})
-// 	if err == nil {
-// 		t.Errorf("Transaction error")
-// 	}
-
-// 	var res []User
-// 	_ = s.Find(&res)
-// 	if len(res) != 0 {
-// 		t.Log(res)
-// 		t.Errorf("Transaction error")
-// 	}
-// }
-
-// test migrate
-// because two different user defined...,
-// if db has no User table, you need to comment below and uncomment above,
-// run some tests to create user table and insert some entries (TestEngine4 for example)
-// then comment above and uncomment below, test the migration function
-//
-// however, if db has a User table, then just run below tests
+// hooks
 type User struct {
-	Name    string `gorm:"PRIMARY KEY"`
-	Age     int
-	ID      int
-	History ints
+	Name   string `gorm:"PRIMARY KEY"`
+	Age    int
+	Career string
+}
+
+func (u *User) BeforeQuery(s *session.Session) error {
+	log.Infof("BeforeQuery name %v", reflect.TypeOf(u).Elem().Name())
+	return nil
+}
+
+func (u *User) AfterQuery(s *session.Session) error {
+	u.Career = "****"
+	log.Info("AfterQuery")
+	return nil
+}
+
+func (u *User) BeforeInsert(s *session.Session) error {
+	log.Info("BeforeInsert")
+	u.Age += 100
+	return nil
+}
+
+func (u *User) AfterInsert(s *session.Session) error {
+	log.Info("AfterInsert")
+	return nil
+}
+
+func TestEngine7(t *testing.T) {
+	// create a table
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+	s := engine.NewSession()
+
+	// define several users
+	users := []User{
+		{"Jack", 35, "Worker"},
+		{"Bob", 21, "Student"},
+		{"Tom", 25, "Teacher"},
+		{"Alice", 18, "Student"},
+	}
+	expected := User{"Alice", 118, "****"}
+
+	// insert
+	_ = s.Model(&User{}).DropTable()
+	s.CreateTable()
+	for _, user := range users {
+		_, _ = s.Insert(&user)
+	}
+
+	// first
+	var res User
+	_ = s.Where("age > ?", 100).OrderBy("Age").First(&res) // every age add 100...so no one is filtered, will found Alice
+
+	if !reflect.DeepEqual(res, expected) {
+		t.Errorf("AfterQuery error, got %v, expect %v", res, expected)
+	}
+}
+
+// test commit
+func TestEngine9(t *testing.T) {
+	type User struct {
+		Name   string `gorm:"PRIMARY KEY"`
+		Age    int
+		Career string
+	}
+	// create a table
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+
+	// define several users
+	users := []User{
+		{"Jack", 35, "Worker"},
+		{"Bob", 21, "Student"},
+		{"Tom", 25, "Teacher"},
+	}
+
+	// transcation
+	_, err := engine.Transaction(func(s *session.Session) (any, error) {
+		_ = s.Model(&User{}).DropTable()
+		s.CreateTable()
+		for _, user := range users {
+			_, _ = s.Insert(&user)
+		}
+		return nil, nil
+	})
+
+	s := engine.NewSession()
+	s.Model(&User{})
+	if err != nil {
+		t.Errorf("Transaction error")
+	}
+	var res []User
+	_ = s.Find(&res)
+	if len(res) != len(users) {
+		t.Errorf("Transaction error, expect %v, got %v", len(users), len(res))
+	}
+	for i := 0; i < len(res); i++ {
+		if res[i] != users[i] {
+			t.Errorf("Transaction error")
+		}
+	}
+}
+
+// rollback test
+func TestEngine10(t *testing.T) {
+	// create a table
+	engine, _ := NewEngine("sqlite3", "gee.db")
+	defer engine.Close()
+
+	// define several users
+	users := []User{
+		{"Jack", 35, "Worker"},
+		{"Bob", 21, "Student"},
+		{"Tom", 25, "Teacher"},
+		{"Alice", 18, "Student"},
+	}
+
+	// drop table before transaction
+	// otherwise, if drop in a transaction, it will be rollback
+	// and the table will not be dropped, some remained data may cause error
+	s := engine.NewSession()
+	_ = s.Model(&User{}).DropTable()
+	_ = s.CreateTable()
+
+	// transcation
+	// rollback
+	_, err := engine.Transaction(func(s *session.Session) (any, error) {
+		_ = s.Model(&User{})
+		for _, user := range users {
+			_, _ = s.Insert(&user)
+		}
+		return nil, errors.New("rollback")
+	})
+	if err == nil {
+		t.Errorf("Transaction error")
+	}
+
+	var res []User
+	_ = s.Find(&res)
+	if len(res) != 0 {
+		t.Log(res)
+		t.Errorf("Transaction error")
+	}
+}
+
+type Car struct {
+	Name         string `gorm:"PRIMARY KEY"`
+	Brand        string
+	HistoryPrice ints
 }
 
 type ints []int
@@ -405,6 +499,7 @@ func (i *ints) Scan(value interface{}) error {
 	buf := bytes.NewBuffer(value.([]byte))
 	for {
 		v, err := buf.ReadString(',')
+		log.Warnf("Scan %v", v)
 		if err != nil {
 			break
 		}
@@ -417,45 +512,40 @@ func (i *ints) Scan(value interface{}) error {
 
 func (i ints) Value() (driver.Value, error) {
 	buf := bytes.NewBuffer([]byte{})
-	for idx, v := range i {
-		if idx != 0 {
-			buf.WriteString(",")
-		}
+	for _, v := range i {
 		buf.WriteString(strconv.Itoa(v))
+		buf.WriteString(",")
 	}
 	return buf.Bytes(), nil
 }
 
 func TestEngine12(t *testing.T) {
-	engine, _ := NewEngine("sqlite3", "tmp.db")
+	engine, _ := NewEngine("sqlite3", "gee.db")
 	defer engine.Close()
-	engine.Migrate(&User{})
+	engine.Migrate(&Car{})
 
 	s := engine.NewSession()
-	_ = s.Model(&User{})
+	_ = s.Model(&Car{})
+	_ = s.DropTable()
+	_ = s.CreateTable()
 
 	// define several users
-	users := []User{
-		{"Jack", 35, 1245, []int{1, 2, 3}},
-		{"Bob", 21, 1246, []int{4, 5, 6}},
-		{"Tom", 25, 1247, []int{7, 8, 9}},
-		{"Alice", 18, 1248, []int{10, 11, 12}},
+	cars := []Car{
+		{"Jack", "BMW", ints{10000, 20000, 30000}},
+		{"Bob", "Benz", ints{20000, 30000, 40000}},
+		{"Tom", "Audi", ints{30000, 40000, 50000}},
+		{"Alice", "Lexus", ints{40000, 50000, 60000}},
 	}
 
-	// update id
-	for _, user := range users {
-		_, _ = s.Where("name = ?", user.Name).Update("id", user.ID, "history", user.History)
+	// insert
+	for _, car := range cars {
+		_, _ = s.Insert(&car)
 	}
 
 	// find
-	var res2 []User
+	var res2 []Car
 	_ = s.Find(&res2)
-	if len(res2) != len(users) {
-		t.Errorf("Find error")
-	}
-	for i := 0; i < len(res2); i++ {
-		if res2[i].Age != users[i].Age {
-			t.Errorf("Find error")
-		}
+	if !reflect.DeepEqual(res2, cars) {
+		t.Errorf("Failed to find, got %v, expect %v", res2, cars)
 	}
 }

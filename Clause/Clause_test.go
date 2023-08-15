@@ -1,6 +1,7 @@
 package clause
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -11,19 +12,15 @@ func TestClause1(t *testing.T) {
 	c.Set(INSERT, "User", []string{"name", "age", "career"})
 	c.Set(VALUES, []any{"Jack", "Worker", 35}, []any{"Bob", "Student", 21})
 	cmd, vals := c.Build(INSERT, VALUES)
-	t.Log(cmd, vals)
+
 	res_cmd := "INSERT INTO User (name, age, career) VALUES (?,?,?), (?,?,?)"
 	res_vals := []any{"Jack", "Worker", 35, "Bob", "Student", 21}
-	if cmd != res_cmd {
+
+	if !reflect.DeepEqual(cmd, res_cmd) {
 		t.Errorf("cmd: %s != %s", cmd, res_cmd)
 	}
-	if len(vals) != len(res_vals) {
+	if !reflect.DeepEqual(vals, res_vals) {
 		t.Errorf("vals: %v != %v", vals, res_vals)
-	}
-	for i := 0; i < len(vals); i++ {
-		if vals[i] != res_vals[i] {
-			t.Errorf("vals: %v != %v", vals, res_vals)
-		}
 	}
 }
 
@@ -36,19 +33,15 @@ func TestClause2(t *testing.T) {
 	c.Set(ORDERBY, "age")
 	c.Set(LIMIT, 1)
 	cmd, vals := c.Build(SELECT, WHERE, ORDERBY, LIMIT)
-	t.Log(cmd, vals)
+
 	res_cmd := "SELECT name,age,career FROM User WHERE name = ? AND age = ? ORDER BY age LIMIT ?"
 	res_vals := []any{"Jack", 35, 1}
-	if cmd != res_cmd {
+
+	if !reflect.DeepEqual(cmd, res_cmd) {
 		t.Errorf("cmd: %s != %s", cmd, res_cmd)
 	}
-	if len(vals) != len(res_vals) {
+	if !reflect.DeepEqual(vals, res_vals) {
 		t.Errorf("vals: %v != %v", vals, res_vals)
-	}
-	for i := 0; i < len(vals); i++ {
-		if vals[i] != res_vals[i] {
-			t.Errorf("vals: %v != %v", vals, res_vals)
-		}
 	}
 }
 
@@ -61,19 +54,15 @@ func TestClause3(t *testing.T) {
 	c.Set(ORDERBY, "age DESC")
 	c.Set(LIMIT, 1)
 	cmd, vals := c.Build(SELECT, WHERE, ORDERBY, LIMIT)
-	t.Log(cmd, vals)
+
 	res_cmd := "SELECT name,age,career FROM User WHERE name = ? AND age = ? ORDER BY age DESC LIMIT ?"
 	res_vals := []any{"Jack", 35, 1}
-	if cmd != res_cmd {
+
+	if !reflect.DeepEqual(cmd, res_cmd) {
 		t.Errorf("cmd: %s != %s", cmd, res_cmd)
 	}
-	if len(vals) != len(res_vals) {
+	if !reflect.DeepEqual(vals, res_vals) {
 		t.Errorf("vals: %v != %v", vals, res_vals)
-	}
-	for i := 0; i < len(vals); i++ {
-		if vals[i] != res_vals[i] {
-			t.Errorf("vals: %v != %v", vals, res_vals)
-		}
 	}
 }
 
@@ -84,18 +73,14 @@ func TestClause4(t *testing.T) {
 	c.Set(UPDATE, "User", map[string]any{"age": 35, "career": "Worker"})
 	c.Set(WHERE, "name = ? AND age = ? AND career = ?", "Jack", 24, "Student")
 	cmd, vals := c.Build(UPDATE, WHERE)
-	t.Log(cmd, vals)
+
 	res_cmd := "UPDATE User SET age = ?, career = ? WHERE name = ? AND age = ? AND career = ?"
 	res_vals := []any{35, "Worker", "Jack", 24, "Student"}
-	if cmd != res_cmd {
+
+	if !reflect.DeepEqual(cmd, res_cmd) {
 		t.Errorf("cmd: %s != %s", cmd, res_cmd)
 	}
-	if len(vals) != len(res_vals) {
+	if !reflect.DeepEqual(vals, res_vals) {
 		t.Errorf("vals: %v != %v", vals, res_vals)
-	}
-	for i := 0; i < len(vals); i++ {
-		if vals[i] != res_vals[i] {
-			t.Errorf("vals: %v != %v", vals, res_vals)
-		}
 	}
 }

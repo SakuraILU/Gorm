@@ -31,7 +31,8 @@ type Schema struct {
 
 func NewSchema(v any, dial dialect.Dialect) (s *Schema) {
 	// it may be a pointer...so indirect it's value if neccessary
-	typ := reflect.Indirect(reflect.ValueOf(v)).Type()
+	refv := reflect.Indirect(reflect.ValueOf(v))
+	typ := refv.Type()
 
 	s = &Schema{
 		model:      v,
@@ -46,7 +47,7 @@ func NewSchema(v any, dial dialect.Dialect) (s *Schema) {
 		f := typ.Field(i)
 		field := &Field{
 			Name: f.Name,
-			Type: dial.DataTypeOf(reflect.Indirect(reflect.New(f.Type)).Interface()),
+			Type: dial.DataTypeOf(reflect.Indirect(refv.Field(i)).Interface()),
 			Tag:  f.Tag.Get("gorm"),
 		}
 		s.namefields[f.Name] = field
